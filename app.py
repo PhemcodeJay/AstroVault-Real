@@ -414,7 +414,7 @@ def render_opp_card(opp: YieldEntry, card_id: str):
                         add_position_to_session(st.session_state, result["position"])
                         explorer = EXPLORER_URLS.get(opp.chain, "")
                         if wallet.can_sign and protocol_supports_live(opp):
-                            st.markdown(f'<div class="ok">✅ Confirmed on-chain! Tx: [{tx_hash[:12]}…]({explorer}{tx_hash})</div>', unsafe_allow_html=True)
+                            st.markdown(f'<div class="ok">✅ Confirmed on-chain! Tx: [<code>{tx_hash[:12]}</code>]({explorer}{tx_hash})</div>', unsafe_allow_html=True)
                         else:
                             st.markdown(f'<div class="info">📝 Position recorded (simulation). Connect private key for live execution.</div>', unsafe_allow_html=True)
                         st.rerun()
@@ -551,7 +551,7 @@ with tabs[6]:
         for pos in all_pos:
             if pos.tx_hash and not pos.tx_hash.startswith("0xSIM"):
                 explorer = EXPLORER_URLS.get(pos.chain, "")
-                st.markdown(f"- {pos.opportunity_name} ({pos.chain.upper()}): [{pos.tx_hash[:14]}…]({explorer}{pos.tx_hash})")
+                st.markdown(f"- {pos.opportunity_name} ({pos.chain.upper()}): [<code>{pos.tx_hash[:14]}</code>]({explorer}{pos.tx_hash})", unsafe_allow_html=True)
 
         st.markdown("---")
         st.markdown('<div class="section-title">Close a Position</div>', unsafe_allow_html=True)
@@ -589,7 +589,7 @@ with tabs[6]:
                             msg = f"✅ Closed. Returned: {result['amount_returned']:.6f} {sym} · PnL: {result['pnl']:+.6f} {sym}"
                             if close_tx:
                                 explorer = EXPLORER_URLS.get(chosen_pos.chain, "")
-                                msg += f" · [Tx]({explorer}{close_tx})"
+                                msg += f" · [<code>{close_tx}</code>]({explorer}{close_tx})"
                             st.markdown(f'<div class="ok">{msg}</div>', unsafe_allow_html=True)
                             st.rerun()
                         else:
