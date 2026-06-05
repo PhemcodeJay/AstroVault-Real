@@ -1,5 +1,4 @@
 # defi_scanner.py
-# defi_scanner.py - Extracted and adapted from uploaded files
 from __future__ import annotations
 
 import os
@@ -17,20 +16,16 @@ MIN_APY: float = 5.0
 MIN_TVL: float = 300_000
 MIN_LIQUIDITY: float = 100_000
 
-# Chains
 ALL_CHAINS: Set[str] = {"solana", "bsc", "eth", "sui", "tao", "arbitrum", "optimism", "base", "avalanche"}
 
-# Focused protocols
 FOCUS_PROTOCOLS: Set[str] = {
     "yearn", "beefy", "radiant", "aave", "aave-v3", "venus", "morpho",
     "pancakeswap", "raydium", "lido", "marinade", "eigenlayer",
     "kamino", "krystal", "turbo"
 }
 
-# Layer2 chains
 LAYER2_CHAINS: Set[str] = {"arbitrum", "optimism", "zksync", "base", "scroll", "linea", "avalanche"}
 
-# Mapping protocol -> type
 OPPORTUNITY_TYPE_MAP: Dict[str, str] = {
     "beefy": "Vault / Auto-compounding",
     "yearn": "Vault / Auto-compounding",
@@ -61,6 +56,9 @@ class YieldEntry:
     pool_id: str
     ror: float
     type: str
+    # NEW: raw numeric fields for live tx routing
+    apy: float = 0.0
+    tvl: float = 0.0
 
     def apy_value(self) -> float:
         try:
@@ -84,6 +82,8 @@ class MemeEntry:
     volume_24h_usd: str
     change_24h_pct: str
     risk: str
+    pair_address: str = ""
+    dex_url: str = ""
 
 # ================== UTILITIES ================== #
 def safe_request(url: str) -> Dict[str, Any]:
@@ -169,7 +169,9 @@ def classify_yield_opportunities() -> Dict[str, List[YieldEntry]]:
             risk=score,
             pool_id=pool_id,
             ror=ror,
-            type=type_str
+            type=type_str,
+            apy=apy,
+            tvl=tvl,
         )
 
         if project.lower() in FOCUS_PROTOCOLS:
@@ -190,8 +192,14 @@ def classify_yield_opportunities() -> Dict[str, List[YieldEntry]]:
 
 # ================== MEME COINS ================== #
 CHAIN_ID_MAP = {
-    1: "ethereum", 56: "bsc", 101: "solana", 1001: "sui", 108: "tao",
-    42161: "arbitrum", 10: "optimism", 8453: "base", 43114: "avalanche"
+    "ethereum": "ethereum", "eth": "ethereum",
+    "bsc": "bsc", "binance": "bsc",
+    "solana": "solana", "sol": "solana",
+    "arbitrum": "arbitrum",
+    "optimism": "optimism",
+    "base": "base",
+    "avalanche": "avalanche",
+    "polygon": "polygon",
 }
 
 MEME_CHAINS: Set[str] = {"sui", "tao", "ethereum", "bsc", "solana", "base", "optimism", "arbitrum", "avalanche"}
@@ -203,7 +211,6 @@ def get_meme_coins() -> List[MemeEntry]:
     for q in queries:
         data = safe_request(f"https://api.dexscreener.com/latest/dex/search?q={q}")
         if "error" in data:
-            print(f"⚠️ dexscreener error on query {q}: {data['error']}")
             continue
 
         pairs = data.get("pairs", [])
@@ -216,8 +223,8 @@ def get_meme_coins() -> List[MemeEntry]:
             if not isinstance(p, dict):
                 continue
 
-            chain_id = p.get("chainId", 0)
-            chain = CHAIN_ID_MAP.get(chain_id, str(chain_id)).lower()
+            chain_raw = str(p.get("chainId", "")).lower()
+            chain = CHAIN_ID_MAP.get(chain_raw, chain_raw)
             if chain not in MEME_CHAINS:
                 continue
 
@@ -234,6 +241,10 @@ def get_meme_coins() -> List[MemeEntry]:
             base_token = obj.get("baseToken", {}) if isinstance(obj.get("baseToken", {}), dict) else {}
             symbol = str(base_token.get("symbol", "?") or "?")
             price_usd = str(obj.get("priceUsd", "N/A") or "N/A")
+            pair_address = str(obj.get("pairAddress", "") or "")
+            dex_url = str(obj.get("url", "") or "")
+            chain_id = str(obj.get("chainId", "")).lower()
+            chain = CHAIN_ID_MAP.get(chain_id, chain_id)
 
             if change24 > 0 and liq > 500_000:
                 score = "Low"
@@ -251,11 +262,13 @@ def get_meme_coins() -> List[MemeEntry]:
                     volume_24h_usd=f"${vol24:,.0f}",
                     change_24h_pct=f"{change24:.2f}%",
                     risk=score,
+                    pair_address=pair_address,
+                    dex_url=dex_url,
                 )
             )
 
-    return results[:12]  # Return top 12 meme coins
+    return results[:12]
+
 
 def get_top_picks(all_opportunities: List[YieldEntry]) -> List[YieldEntry]:
-    """Get top 5 opportunities by ROR across all categories"""
-    return sorted(all_opportunities, key=lambda x: x.ror, reverse=True)[:5]
+    return sorted(all_opportunities, key=lambda x: x.ror, reverse=True)[:6]
